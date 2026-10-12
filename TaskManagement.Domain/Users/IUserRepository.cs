@@ -1,6 +1,6 @@
 namespace TaskManagement.Domain.Users;
 
-/// <summary>Soft-deleted users are never returned by this repository.</summary>
+//Soft-deleted users are never returned by this repository
 public interface IUserRepository
 {
     Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);

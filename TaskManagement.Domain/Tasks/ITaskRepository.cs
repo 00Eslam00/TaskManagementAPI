@@ -4,7 +4,7 @@ public interface ITaskRepository
 {
     Task<TaskItem?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
-    /// <summary>Returns the user's tasks ordered by priority (highest first), then by creation date (oldest first).</summary>
+    //Returns the user's tasks ordered by priority (highest first), then by creation date (oldest first)
     Task<IReadOnlyList<TaskItem>> GetByUserAsync(Guid userId, CancellationToken cancellationToken = default);
 
     Task<bool> ExistsWithTitleOnDayAsync(Guid userId, string normalizedTitle, DateOnly day, CancellationToken cancellationToken = default);

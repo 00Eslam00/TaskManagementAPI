@@ -82,10 +82,10 @@ public class User : Entity
         return token;
     }
 
-    /// <summary>
-    /// Revokes the given refresh token so it can be exchanged only once.
-    /// Fails if the token does not belong to this user or is no longer active.
-    /// </summary>
+
+    // Revokes the given refresh token so it can be exchanged only once.
+    // Fails if the token does not belong to this user or is no longer active.
+
     public void UseRefreshToken(string tokenHash, DateTime utcNow)
     {
         EnsureNotDeleted();
@@ -103,7 +103,7 @@ public class User : Entity
             token.Revoke(utcNow);
     }
 
-    /// <summary>Soft delete: the row is kept, but the user can no longer log in and is hidden from queries.</summary>
+    // Soft delete: the row is kept, but the user can no longer log in and is hidden from queries
     public void Delete(DateTime utcNow)
     {
         if (IsDeleted)

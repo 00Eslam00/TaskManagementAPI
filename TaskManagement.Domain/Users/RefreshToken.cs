@@ -2,9 +2,6 @@ using TaskManagement.Domain.Common;
 
 namespace TaskManagement.Domain.Users;
 
-/// <summary>
-/// A refresh token owned by a <see cref="User"/>. Only a hash of the token is stored.
-/// </summary>
 public class RefreshToken : Entity
 {
     private RefreshToken()
