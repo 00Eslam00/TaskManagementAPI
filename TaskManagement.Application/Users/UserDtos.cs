@@ -15,7 +15,7 @@ public class RegisterRequest
     public string Password { get; set; } = string.Empty;
 }
 
-/// <summary>Used by an admin to add a user. Unlike self-registration, the role can be chosen.</summary>
+// Used by an admin to add a user. Unlike self-registration, the role can be chosen.
 public class CreateUserRequest
 {
     [Required, MaxLength(User.NameMaxLength)]
