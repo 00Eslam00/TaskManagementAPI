@@ -20,9 +20,11 @@ internal static class JwtAuthenticationExtensions
             .Validate(o => Encoding.UTF8.GetByteCount(o.Key) >= JwtOptions.MinimumKeyLength,
                 $"Jwt:Key must be at least {JwtOptions.MinimumKeyLength} characters long.")
             .Validate(o => o.AccessTokenMinutes > 0, "Jwt:AccessTokenMinutes must be greater than zero.")
+            .Validate(o => o.RefreshTokenDays > 0, "Jwt:RefreshTokenDays must be greater than zero.")
             .ValidateOnStart();
 
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
+        services.AddSingleton<IRefreshTokenFactory, RefreshTokenFactory>();
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 
@@ -49,8 +51,6 @@ internal static class JwtAuthenticationExtensions
 
                 bearer.Events = new JwtBearerEvents
                 {
-                    // A token stays cryptographically valid until it expires, so also check that
-                    // its user still exists. This locks out a deleted user immediately.
                     OnTokenValidated = async context =>
                     {
                         var users = context.HttpContext.RequestServices.GetRequiredService<IUserRepository>();

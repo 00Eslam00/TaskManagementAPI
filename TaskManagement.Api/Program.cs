@@ -1,42 +1,63 @@
 using System.Text.Json.Serialization;
+using Serilog;
 using TaskManagement.Api.Infrastructure;
 using TaskManagement.Application;
 using TaskManagement.Application.Abstractions;
 using TaskManagement.Infrastructure;
 
-var builder = WebApplication.CreateBuilder(args);
+Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
 
-builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
+try
+{
+    var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ICurrentUser, CurrentUser>();
+    builder.Host.UseSerilog((context, services, configuration) => configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext());
 
-builder.Services.AddAuthorization();
+    builder.Services.AddApplication();
+    builder.Services.AddInfrastructure(builder.Configuration);
 
-builder.Services
-    .AddControllers()
-    .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 
-builder.Services.AddProblemDetails();
-builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+    builder.Services.AddAuthorization();
 
-builder.Services.AddSwaggerWithJwt();
+    builder.Services
+        .AddControllers()
+        .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
-var app = builder.Build();
+    builder.Services.AddProblemDetails();
+    builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
-await app.Services.InitializeDatabaseAsync();
+    builder.Services.AddSwaggerWithJwt();
 
-app.UseExceptionHandler();
+    var app = builder.Build();
 
-app.UseStatusCodePages();
+    await app.Services.InitializeDatabaseAsync();
 
-app.UseSwagger();
-app.UseSwaggerUI();
+    app.UseSerilogRequestLogging();
 
-app.UseAuthentication();
-app.UseAuthorization();
+    app.UseExceptionHandler();
+    app.UseStatusCodePages();
 
-app.MapControllers();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 
-app.Run();
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    app.MapControllers();
+
+    app.Run();
+}
+catch (Exception ex) when (ex is not HostAbortedException)
+{
+    Log.Fatal(ex, "The application failed to start");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
+}

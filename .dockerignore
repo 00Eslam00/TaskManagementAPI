@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+**/logs/
+**/.vs/
+.git/
+.config/
+tests/
+docker-compose.yml
+Dockerfile
+README.md

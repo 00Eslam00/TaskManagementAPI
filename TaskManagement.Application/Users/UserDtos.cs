@@ -15,7 +15,6 @@ public class RegisterRequest
     public string Password { get; set; } = string.Empty;
 }
 
-// Used by an admin to add a user. Unlike self-registration, the role can be chosen.
 public class CreateUserRequest
 {
     [Required, MaxLength(User.NameMaxLength)]
@@ -42,7 +41,18 @@ public class LoginRequest
 
 public record UserResponse(Guid Id, string Name, string Email, Role Role, DateTime CreatedAt);
 
-public record AuthResponse(string AccessToken, DateTime ExpiresAt, UserResponse User)
+public class RefreshTokenRequest
+{
+    [Required]
+    public string RefreshToken { get; set; } = string.Empty;
+}
+
+public record AuthResponse(
+    string AccessToken,
+    DateTime ExpiresAt,
+    string RefreshToken,
+    DateTime RefreshTokenExpiresAt,
+    UserResponse User)
 {
     public string TokenType => "Bearer";
 }
