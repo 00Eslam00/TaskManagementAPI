@@ -2,7 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using StackExchange.Redis;
 using TaskManagement.Application.Abstractions;
+using TaskManagement.Infrastructure.BackgroundProcessing;
+using TaskManagement.Infrastructure.Caching;
 using TaskManagement.Domain.Common;
 using TaskManagement.Domain.Tasks;
 using TaskManagement.Domain.Users;
@@ -24,7 +27,43 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
         services.AddJwtAuthentication(configuration);
 
+        AddCaching(services, configuration);
+        AddBackgroundProcessing(services, configuration);
+
         return services;
+    }
+
+    private static void AddBackgroundProcessing(IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<BackgroundProcessingOptions>(configuration.GetSection(BackgroundProcessingOptions.SectionName));
+
+        // One shared queue instance: requests write to it through the interface, the worker reads from it.
+        services.AddSingleton<TaskProcessingQueue>();
+        services.AddSingleton<ITaskProcessingQueue>(provider => provider.GetRequiredService<TaskProcessingQueue>());
+
+        services.AddHostedService<TaskProcessingWorker>();
+    }
+
+    private static void AddCaching(IServiceCollection services, IConfiguration configuration)
+    {
+        var redisConnectionString = configuration.GetConnectionString("Redis")
+            ?? throw new InvalidOperationException("Connection string 'Redis' is not configured.");
+
+        services.AddStackExchangeRedisCache(options =>
+        {
+            var redis = ConfigurationOptions.Parse(redisConnectionString);
+            // Start even if Redis is down, and fail fast per call so requests are not held up.
+            redis.AbortOnConnectFail = false;
+            redis.ConnectTimeout = 2000;
+            redis.SyncTimeout = 2000;
+            redis.AsyncTimeout = 2000;
+
+            options.ConfigurationOptions = redis;
+            options.InstanceName = "TaskManagement:";
+        });
+
+        services.Configure<CacheOptions>(configuration.GetSection(CacheOptions.SectionName));
+        services.AddSingleton<ITaskCache, RedisTaskCache>();
     }
 
     private static void AddPersistence(IServiceCollection services, IConfiguration configuration)
@@ -42,7 +81,7 @@ public static class DependencyInjection
         services.AddScoped<DatabaseInitializer>();
     }
 
-    // Applies migrations and seeds the default admin. Call once at application startup.
+    /// <summary>Applies migrations and seeds the default admin. Call once at application startup.</summary>
     public static async Task InitializeDatabaseAsync(this IServiceProvider services)
     {
         using var scope = services.CreateScope();

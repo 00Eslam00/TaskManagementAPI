@@ -15,6 +15,7 @@ public class TaskService : ITaskService
     private readonly ITaskRepository _tasks;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ITaskCache _cache;
+    private readonly ITaskProcessingQueue _queue;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<TaskService> _logger;
 
@@ -22,12 +23,14 @@ public class TaskService : ITaskService
         ITaskRepository tasks,
         IUnitOfWork unitOfWork,
         ITaskCache cache,
+        ITaskProcessingQueue queue,
         TimeProvider timeProvider,
         ILogger<TaskService> logger)
     {
         _tasks = tasks;
         _unitOfWork = unitOfWork;
         _cache = cache;
+        _queue = queue;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -54,7 +57,11 @@ public class TaskService : ITaskService
             throw new ConflictException(DuplicateTitleMessage, ex);
         }
 
-        _logger.LogInformation("Task {TaskId} created by user {UserId}", task.Id, userId);
+        // Only queued once the task is safely in the database. The request does not wait
+        // for the processing itself; the background worker picks the task up from here.
+        await _queue.EnqueueAsync(task.Id, cancellationToken);
+
+        _logger.LogInformation("Task {TaskId} created by user {UserId} and queued for processing", task.Id, userId);
 
         return task.ToResponse();
     }
@@ -105,10 +112,7 @@ public class TaskService : ITaskService
         return task.ToResponse();
     }
 
-    /// <summary>
-    /// Loads a task and checks it belongs to the user. Someone else's task is reported as
-    /// "not found" rather than "forbidden", so the API does not confirm which task ids exist.
-    /// </summary>
+
     private async Task<TaskItem> GetOwnedTaskAsync(Guid userId, Guid taskId, CancellationToken cancellationToken)
     {
         var task = await _tasks.GetByIdAsync(taskId, cancellationToken);
