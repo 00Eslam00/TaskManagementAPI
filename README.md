@@ -50,7 +50,7 @@ docker run -d --name taskmgmt-redis -p 6379:6379 redis:7-alpine
 1. Clone the repository.
 
 ```bash
-git clone https://github.com/00Eslam00/TaskManagement.git
+git clone https://github.com/00Eslam00/TaskManagementAPI.git
 ```
 
 2. If your SQL Server is not the default local instance, change `ConnectionStrings:DefaultConnection` in `src/TaskManagement.Api/appsettings.json`. For example, use `Server=.\SQLEXPRESS` for SQL Server Express or `Server=(localdb)\MSSQLLocalDB` for LocalDB.
