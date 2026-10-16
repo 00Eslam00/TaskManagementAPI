@@ -65,6 +65,32 @@ dotnet run --project backend/TaskManagement/src/TaskManagement.Api
 
 There is no manual database step. On startup the application creates the `TaskManagementDb` database, applies the EF Core migrations and seeds the admin user.
 
+### Running the frontend
+
+The React app lives in `frontend/`. It needs Node.js 20 or later and the API running (Option A).
+
+1. Create the environment file. The default value points to the API started with `dotnet run`.
+
+```bash
+cp frontend/.env.example frontend/.env
+```
+
+2. Install the packages and start the dev server.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+3. Open `http://localhost:5173`.
+
+The dev server always uses port 5173 because that is the only origin the API allows (`Cors:AllowedOrigins`).
+
+| Variable       | Default                 | Purpose                                           |
+| -------------- | ----------------------- | ------------------------------------------------- |
+| `VITE_API_URL` | `http://localhost:5034` | Base address of the API, without a trailing slash |
+
 ### Option B: run everything in Docker
 
 **Prerequisite:** Docker Desktop.
@@ -210,14 +236,15 @@ Because the queue is in memory, the worker re-queues every task that has no `pro
 
 All settings are in `backend/TaskManagement/src/TaskManagement.Api/appsettings.json` and can be overridden with environment variables (for example `Jwt__Key`).
 
-| Section                | Purpose                                                 |
-| ---------------------- | ------------------------------------------------------- |
-| `ConnectionStrings`    | SQL Server and Redis addresses                          |
-| `Jwt`                  | Issuer, audience, signing key, token lifetimes          |
-| `Cache`                | Cache expiry and the retry window after a Redis failure |
-| `BackgroundProcessing` | Simulated work time per task                            |
-| `AdminSeed`            | Default admin name, email and password                  |
-| `Serilog`              | Log levels and outputs                                  |
+| Section                | Purpose                                                        |
+| ---------------------- | -------------------------------------------------------------- |
+| `ConnectionStrings`    | SQL Server and Redis addresses                                 |
+| `Jwt`                  | Issuer, audience, signing key, token lifetimes                 |
+| `Cache`                | Cache expiry and the retry window after a Redis failure        |
+| `Cors`                 | Browser origins allowed to call the API (the React dev server) |
+| `BackgroundProcessing` | Simulated work time per task                                   |
+| `AdminSeed`            | Default admin name, email and password                         |
+| `Serilog`              | Log levels and outputs                                         |
 
 The JWT signing key and the admin password in this file are development values, kept there so the project runs without any setup. In a real deployment they must come from environment variables or a secret store.
 
@@ -229,6 +256,7 @@ The JWT signing key and the admin password in this file are development values, 
 
 ## Changes since Stage 1
 
-| Change                                                                                                                              | Reason                                                                                                                                    |
-| ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `Dockerfile` and `.dockerignore` now read the .NET code from `backend/TaskManagement/`, and the README paths were updated to match. | The Stage 1 commit moved the solution into `backend/` but the Dockerfile still copied from `src/`, so `docker compose up --build` failed. |
+| Change                                                                                                                                                                                      | Reason                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Dockerfile` and `.dockerignore` now read the .NET code from `backend/TaskManagement/`, and the README paths were updated to match.                                                         | The Stage 1 commit moved the solution into `backend/` but the Dockerfile still copied from `src/`, so `docker compose up --build` failed.                                               |
+| CORS policy `Frontend` added (`CorsExtensions`, `Cors:AllowedOrigins` in `appsettings.json`). Only `http://localhost:5173` is allowed, with only the headers and methods the frontend uses. | The browser blocks calls from the React app to a different origin unless the API allows it. It runs before the exception handler so 401/409 error bodies stay readable to the frontend. |
