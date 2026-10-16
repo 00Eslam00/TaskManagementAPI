@@ -32,15 +32,20 @@ export function toApiError(error: unknown): ApiError {
   }
 
   const { status, data } = error.response
-  const fieldErrors = toFieldErrors(data?.errors)
 
-  // The API puts the readable reason in "detail".
-  // Validation failures have no detail, only per-field messages.
+  // The API never explains a server failure, so one fixed sentence is shown for all of them.
+  if (status >= 500) {
+    return { status, message: 'Something went wrong on the server. Please try again later.', fieldErrors: {} }
+  }
+
+  const fieldErrors = toFieldErrors(data?.errors)
+  const firstFieldError = Object.values(fieldErrors)[0]
+
+  // The API puts the readable reason in "detail" (for example the duplicate-title message).
+  // Validation failures have no detail, only per-field messages. The first one is used as the
+  // message, so it is still visible when the form has no field to show it under.
   const message =
-    data?.detail ??
-    (Object.keys(fieldErrors).length > 0
-      ? 'Please fix the highlighted fields.'
-      : (fallbackMessages[status] ?? 'Something went wrong. Please try again later.'))
+    data?.detail ?? firstFieldError ?? fallbackMessages[status] ?? 'Something went wrong. Please try again.'
 
   return { status, message, fieldErrors }
 }
