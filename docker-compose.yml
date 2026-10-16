@@ -1,3 +1,9 @@
+# Runs the whole system with one command:  docker compose up --build
+# Swagger is then available at http://localhost:8080/swagger
+#
+# Nothing needs to be installed locally except Docker. SQL Server and Redis run as
+# containers and are only reachable from the API container, so they cannot clash with
+# a SQL Server or Redis already running on this machine.
 
 name: taskmanagement
 
@@ -7,7 +13,8 @@ services:
     ports:
       - "8080:8080"
     environment:
-
+      # These override the values in appsettings.json ("__" stands for ":").
+      # A container cannot use Windows Authentication, so a SQL login is used here.
       ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=TaskManagementDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:-Dev_Passw0rd_2026};TrustServerCertificate=True"
       ConnectionStrings__Redis: "redis:6379"
     depends_on:
@@ -20,12 +27,14 @@ services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
-      # Accept the Microsoft SQL Server licence terms.
+      # Setting this to "Y" means you accept the Microsoft SQL Server licence terms.
       ACCEPT_EULA: "Y"
+      # Development-only default. Set MSSQL_SA_PASSWORD in a .env file to use your own.
       MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-Dev_Passw0rd_2026}"
     volumes:
       - sqlserver-data:/var/opt/mssql
     healthcheck:
+      # The API starts only once SQL Server accepts logins.
       test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" -b
       interval: 5s
       timeout: 5s
