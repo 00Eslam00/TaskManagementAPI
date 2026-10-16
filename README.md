@@ -4,27 +4,27 @@ A backend API where users register, log in and manage their own tasks, built wit
 
 It was written for the ".NET Backend Developer Technical Task" and covers every required item plus all six optional bonus items.
 
-| Requirement | Where it is |
-|---|---|
-| DDD-style project structure | Four projects: Domain, Application, Infrastructure, Api |
-| RESTful API with Swagger and JWT support | `backend/src/TaskManagement.Api` |
-| Register, login, profile | `AuthController`, `UsersController` |
-| Seeded admin and admin-only user management | `DatabaseInitializer`, `AdminUsersController` |
-| Task module with ownership rules | `TasksController`, `TaskService` |
-| Redis cache on Get Task by ID | `TaskService.GetByIdAsync`, `RedisTaskCache` |
-| Background processing | `TaskProcessingQueue`, `TaskProcessingWorker`, `TaskProcessor` |
-| Business logic (sorting, duplicate rule) | `TaskRepository.GetByUserAsync`, `TaskService.CreateAsync` |
-| Bonus: global exception handling | `GlobalExceptionHandler` |
-| Bonus: Docker support | `Dockerfile`, `docker-compose.yml` |
-| Bonus: unit tests | `backend/tests/TaskManagement.UnitTests` (63 tests) |
-| Bonus: clean logging | Serilog, configured in `appsettings.json` |
-| Bonus: refresh tokens | `AuthService.RefreshAsync` |
-| Bonus: soft delete for users | `User.Delete`, `UserRepository` |
+| Requirement                                 | Where it is                                                        |
+| ------------------------------------------- | ------------------------------------------------------------------ |
+| DDD-style project structure                 | Four projects: Domain, Application, Infrastructure, Api            |
+| RESTful API with Swagger and JWT support    | `backend/TaskManagement/src/TaskManagement.Api`                    |
+| Register, login, profile                    | `AuthController`, `UsersController`                                |
+| Seeded admin and admin-only user management | `DatabaseInitializer`, `AdminUsersController`                      |
+| Task module with ownership rules            | `TasksController`, `TaskService`                                   |
+| Redis cache on Get Task by ID               | `TaskService.GetByIdAsync`, `RedisTaskCache`                       |
+| Background processing                       | `TaskProcessingQueue`, `TaskProcessingWorker`, `TaskProcessor`     |
+| Business logic (sorting, duplicate rule)    | `TaskRepository.GetByUserAsync`, `TaskService.CreateAsync`         |
+| Bonus: global exception handling            | `GlobalExceptionHandler`                                           |
+| Bonus: Docker support                       | `Dockerfile`, `docker-compose.yml`                                 |
+| Bonus: unit tests                           | `backend/TaskManagement/tests/TaskManagement.UnitTests` (63 tests) |
+| Bonus: clean logging                        | Serilog, configured in `appsettings.json`                          |
+| Bonus: refresh tokens                       | `AuthService.RefreshAsync`                                         |
+| Bonus: soft delete for users                | `User.Delete`, `UserRepository`                                    |
 
 ## Seeded admin credentials
 
-| Email | Password |
-|---|---|
+| Email               | Password    |
+| ------------------- | ----------- |
 | `admin@example.com` | `Admin@123` |
 
 The admin is created the first time the application starts. The values come from the `AdminSeed` section of `appsettings.json`.
@@ -50,15 +50,15 @@ docker run -d --name taskmgmt-redis -p 6379:6379 redis:7-alpine
 1. Clone the repository.
 
 ```bash
-git clone https://github.com/00Eslam00/TaskManagementAPI.git
+git clone https://github.com/00Eslam00/TaskManagement.git
 ```
 
-2. If your SQL Server is not the default local instance, change `ConnectionStrings:DefaultConnection` in `backend/src/TaskManagement.Api/appsettings.json`. For example, use `Server=.\SQLEXPRESS` for SQL Server Express or `Server=(localdb)\MSSQLLocalDB` for LocalDB.
+2. If your SQL Server is not the default local instance, change `ConnectionStrings:DefaultConnection` in `backend/TaskManagement/src/TaskManagement.Api/appsettings.json`. For example, use `Server=.\SQLEXPRESS` for SQL Server Express or `Server=(localdb)\MSSQLLocalDB` for LocalDB.
 
 3. Run the API from the repository root.
 
 ```bash
-dotnet run --project backend/src/TaskManagement.Api
+dotnet run --project backend/TaskManagement/src/TaskManagement.Api
 ```
 
 4. Open `http://localhost:5034/swagger`.
@@ -89,8 +89,10 @@ docker compose down -v
 
 ### Running the tests
 
+From the repository root:
+
 ```bash
-dotnet test backend/TaskManagement.slnx
+dotnet test backend/TaskManagement/tests/TaskManagement.UnitTests
 ```
 
 ## Trying it in Swagger
@@ -101,27 +103,27 @@ dotnet test backend/TaskManagement.slnx
 
 ## API endpoints
 
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| POST | `/api/auth/register` | Anonymous | Create an account (always with the `User` role) |
-| POST | `/api/auth/login` | Anonymous | Returns an access token and a refresh token |
-| POST | `/api/auth/refresh` | Anonymous | Exchanges a refresh token for a new pair of tokens |
-| POST | `/api/auth/logout` | Authenticated | Revokes all refresh tokens of the caller |
-| GET | `/api/users/me` | Authenticated | Profile of the logged-in user |
-| GET | `/api/admin/users` | Admin | List all active users |
-| POST | `/api/admin/users` | Admin | Add a user (role is optional, defaults to `User`) |
-| DELETE | `/api/admin/users/{id}` | Admin | Soft-delete a user |
-| POST | `/api/tasks` | Authenticated | Create a task |
-| GET | `/api/tasks` | Authenticated | List the caller's tasks, sorted |
-| GET | `/api/tasks/{id}` | Authenticated | Get one of the caller's tasks (cached in Redis) |
-| PATCH | `/api/tasks/{id}/status` | Authenticated | Change a task's status |
+| Method | Endpoint                 | Access        | Description                                        |
+| ------ | ------------------------ | ------------- | -------------------------------------------------- |
+| POST   | `/api/auth/register`     | Anonymous     | Create an account (always with the `User` role)    |
+| POST   | `/api/auth/login`        | Anonymous     | Returns an access token and a refresh token        |
+| POST   | `/api/auth/refresh`      | Anonymous     | Exchanges a refresh token for a new pair of tokens |
+| POST   | `/api/auth/logout`       | Authenticated | Revokes all refresh tokens of the caller           |
+| GET    | `/api/users/me`          | Authenticated | Profile of the logged-in user                      |
+| GET    | `/api/admin/users`       | Admin         | List all active users                              |
+| POST   | `/api/admin/users`       | Admin         | Add a user (role is optional, defaults to `User`)  |
+| DELETE | `/api/admin/users/{id}`  | Admin         | Soft-delete a user                                 |
+| POST   | `/api/tasks`             | Authenticated | Create a task                                      |
+| GET    | `/api/tasks`             | Authenticated | List the caller's tasks, sorted                    |
+| GET    | `/api/tasks/{id}`        | Authenticated | Get one of the caller's tasks (cached in Redis)    |
+| PATCH  | `/api/tasks/{id}/status` | Authenticated | Change a task's status                             |
 
 Errors are returned as RFC 7807 problem details. Status codes used: 400 (validation or business rule), 401 (not authenticated), 403 (not an admin), 404 (not found or not yours), 409 (duplicate).
 
 ## Project structure
 
 ```
-backend/
+backend/TaskManagement/
   TaskManagement.slnx
   src/
     TaskManagement.Domain           Entities, enums, business rules, repository interfaces
@@ -206,16 +208,16 @@ Because the queue is in memory, the worker re-queues every task that has no `pro
 
 ## Configuration
 
-All settings are in `backend/src/TaskManagement.Api/appsettings.json` and can be overridden with environment variables (for example `Jwt__Key`).
+All settings are in `backend/TaskManagement/src/TaskManagement.Api/appsettings.json` and can be overridden with environment variables (for example `Jwt__Key`).
 
-| Section | Purpose |
-|---|---|
-| `ConnectionStrings` | SQL Server and Redis addresses |
-| `Jwt` | Issuer, audience, signing key, token lifetimes |
-| `Cache` | Cache expiry and the retry window after a Redis failure |
-| `BackgroundProcessing` | Simulated work time per task |
-| `AdminSeed` | Default admin name, email and password |
-| `Serilog` | Log levels and outputs |
+| Section                | Purpose                                                 |
+| ---------------------- | ------------------------------------------------------- |
+| `ConnectionStrings`    | SQL Server and Redis addresses                          |
+| `Jwt`                  | Issuer, audience, signing key, token lifetimes          |
+| `Cache`                | Cache expiry and the retry window after a Redis failure |
+| `BackgroundProcessing` | Simulated work time per task                            |
+| `AdminSeed`            | Default admin name, email and password                  |
+| `Serilog`              | Log levels and outputs                                  |
 
 The JWT signing key and the admin password in this file are development values, kept there so the project runs without any setup. In a real deployment they must come from environment variables or a secret store.
 
@@ -224,3 +226,9 @@ The JWT signing key and the admin password in this file are development values, 
 - The queue is in memory and the worker runs inside the API process, one task at a time. With several API instances, a restart of one instance could process a task twice; the operation is idempotent, so the result is the same. A production system would use a durable queue.
 - The guard against stale cache entries after a Redis outage is kept in memory per API instance. With several instances, an outdated entry could survive until its 10-minute expiry.
 - There is no pagination on the list endpoints.
+
+## Changes since Stage 1
+
+| Change                                                                                                                              | Reason                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `Dockerfile` and `.dockerignore` now read the .NET code from `backend/TaskManagement/`, and the README paths were updated to match. | The Stage 1 commit moved the solution into `backend/` but the Dockerfile still copied from `src/`, so `docker compose up --build` failed. |
