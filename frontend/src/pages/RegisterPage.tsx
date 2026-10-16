@@ -11,24 +11,13 @@ import { AuthCard } from '../components/AuthCard'
 import { toApiError } from '../lib/errors'
 import { applyFieldErrors } from '../lib/forms'
 import { limits } from '../lib/limits'
+import { emailField, nameField, newPasswordField } from '../lib/validation'
 
 const registerSchema = z
     .object({
-        name: z
-            .string()
-            .trim()
-            .min(1, 'Name is required')
-            .max(limits.nameMax, `Name cannot be longer than ${limits.nameMax} characters`),
-        email: z
-            .string()
-            .trim()
-            .min(1, 'Email is required')
-            .email('Enter a valid email address')
-            .max(limits.emailMax, `Email cannot be longer than ${limits.emailMax} characters`),
-        password: z
-            .string()
-            .min(limits.passwordMin, `Password must be at least ${limits.passwordMin} characters`)
-            .max(limits.passwordMax, `Password cannot be longer than ${limits.passwordMax} characters`),
+        name: nameField,
+        email: emailField,
+        password: newPasswordField,
         confirmPassword: z.string().min(1, 'Please confirm your password'),
     })
     .refine((values) => values.password === values.confirmPassword, {
