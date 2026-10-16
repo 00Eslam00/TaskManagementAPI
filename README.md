@@ -7,7 +7,7 @@ It was written for the ".NET Backend Developer Technical Task" and covers every 
 | Requirement | Where it is |
 |---|---|
 | DDD-style project structure | Four projects: Domain, Application, Infrastructure, Api |
-| RESTful API with Swagger and JWT support | `src/TaskManagement.Api` |
+| RESTful API with Swagger and JWT support | `backend/src/TaskManagement.Api` |
 | Register, login, profile | `AuthController`, `UsersController` |
 | Seeded admin and admin-only user management | `DatabaseInitializer`, `AdminUsersController` |
 | Task module with ownership rules | `TasksController`, `TaskService` |
@@ -16,7 +16,7 @@ It was written for the ".NET Backend Developer Technical Task" and covers every 
 | Business logic (sorting, duplicate rule) | `TaskRepository.GetByUserAsync`, `TaskService.CreateAsync` |
 | Bonus: global exception handling | `GlobalExceptionHandler` |
 | Bonus: Docker support | `Dockerfile`, `docker-compose.yml` |
-| Bonus: unit tests | `tests/TaskManagement.UnitTests` (63 tests) |
+| Bonus: unit tests | `backend/tests/TaskManagement.UnitTests` (63 tests) |
 | Bonus: clean logging | Serilog, configured in `appsettings.json` |
 | Bonus: refresh tokens | `AuthService.RefreshAsync` |
 | Bonus: soft delete for users | `User.Delete`, `UserRepository` |
@@ -53,12 +53,12 @@ docker run -d --name taskmgmt-redis -p 6379:6379 redis:7-alpine
 git clone https://github.com/00Eslam00/TaskManagementAPI.git
 ```
 
-2. If your SQL Server is not the default local instance, change `ConnectionStrings:DefaultConnection` in `src/TaskManagement.Api/appsettings.json`. For example, use `Server=.\SQLEXPRESS` for SQL Server Express or `Server=(localdb)\MSSQLLocalDB` for LocalDB.
+2. If your SQL Server is not the default local instance, change `ConnectionStrings:DefaultConnection` in `backend/src/TaskManagement.Api/appsettings.json`. For example, use `Server=.\SQLEXPRESS` for SQL Server Express or `Server=(localdb)\MSSQLLocalDB` for LocalDB.
 
 3. Run the API from the repository root.
 
 ```bash
-dotnet run --project src/TaskManagement.Api
+dotnet run --project backend/src/TaskManagement.Api
 ```
 
 4. Open `http://localhost:5034/swagger`.
@@ -90,7 +90,7 @@ docker compose down -v
 ### Running the tests
 
 ```bash
-dotnet test
+dotnet test backend/TaskManagement.slnx
 ```
 
 ## Trying it in Swagger
@@ -121,13 +121,15 @@ Errors are returned as RFC 7807 problem details. Status codes used: 400 (validat
 ## Project structure
 
 ```
-src/
-  TaskManagement.Domain           Entities, enums, business rules, repository interfaces
-  TaskManagement.Application      Use cases (services), DTOs, interfaces for cache, queue, tokens
-  TaskManagement.Infrastructure   EF Core, migrations, seeding, Redis, JWT, BCrypt, background worker
-  TaskManagement.Api              Controllers, Swagger, exception handling, startup
-tests/
-  TaskManagement.UnitTests        Domain, application and cache tests
+backend/
+  TaskManagement.slnx
+  src/
+    TaskManagement.Domain           Entities, enums, business rules, repository interfaces
+    TaskManagement.Application      Use cases (services), DTOs, interfaces for cache, queue, tokens
+    TaskManagement.Infrastructure   EF Core, migrations, seeding, Redis, JWT, BCrypt, background worker
+    TaskManagement.Api              Controllers, Swagger, exception handling, startup
+  tests/
+    TaskManagement.UnitTests        Domain, application and cache tests
 ```
 
 ## Architecture approach
@@ -204,7 +206,7 @@ Because the queue is in memory, the worker re-queues every task that has no `pro
 
 ## Configuration
 
-All settings are in `src/TaskManagement.Api/appsettings.json` and can be overridden with environment variables (for example `Jwt__Key`).
+All settings are in `backend/src/TaskManagement.Api/appsettings.json` and can be overridden with environment variables (for example `Jwt__Key`).
 
 | Section | Purpose |
 |---|---|

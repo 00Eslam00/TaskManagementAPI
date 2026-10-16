@@ -4,7 +4,8 @@
 **/.vs/
 .git/
 .config/
-tests/
+backend/tests/
+frontend/
 docker-compose.yml
 Dockerfile
 README.md
