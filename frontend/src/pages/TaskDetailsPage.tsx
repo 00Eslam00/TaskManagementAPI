@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Link as RouterLink, useParams } from 'react-router'
+import { Link as RouterLink, useLocation, useParams } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
     Alert,
@@ -19,9 +19,11 @@ import { getTask, updateTaskStatus } from '../api/tasks'
 import { TASK_STATUSES, type TaskResponse, type TaskStatus } from '../api/types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EmptyState, ErrorState } from '../components/PageStates'
-import { PriorityBadge, StatusBadge } from '../components/TaskBadges'
+import { PriorityBadge, ProcessingBadge, StatusBadge } from '../components/TaskBadges'
 import { toApiError } from '../lib/errors'
 import { formatDateTime, formatStatus } from '../lib/format'
+import { pollWhileProcessing } from '../lib/processing'
+import type { TaskListLocationState } from '../lib/taskFilters'
 
 // The API route only matches GUIDs, so anything else cannot be a task; no request is needed.
 const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -29,11 +31,16 @@ const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 export default function TaskDetailsPage() {
     const { id = '' } = useParams()
     const isValidId = GUID_PATTERN.test(id)
+    // Back to the list with the same filter and search the user came from.
+    const listSearch = (useLocation().state as TaskListLocationState | null)?.listSearch ?? ''
 
     const taskQuery = useQuery({
         queryKey: queryKeys.task(id),
         queryFn: () => getTask(id),
         enabled: isValidId,
+        // Asks again every 2 seconds until the background worker has processed the task,
+        // so "Processing…" turns into "Processed" without a page reload.
+        refetchInterval: (query) => pollWhileProcessing(query.state.data),
     })
 
     const notFound = !isValidId || (taskQuery.isError && toApiError(taskQuery.error).status === 404)
@@ -41,7 +48,7 @@ export default function TaskDetailsPage() {
     return (
         <Stack spacing={3}>
             <Box>
-                <Button component={RouterLink} to="/tasks" startIcon={<ArrowBackIcon />}>
+                <Button component={RouterLink} to={`/tasks${listSearch}`} startIcon={<ArrowBackIcon />}>
                     Back to tasks
                 </Button>
             </Box>
@@ -109,9 +116,10 @@ function TaskDetails({ task }: { task: TaskResponse }) {
                     <Typography variant="h4" component="h1" sx={{ fontSize: { xs: '1.5rem', sm: '2rem' }, overflowWrap: 'anywhere' }}>
                         {task.title}
                     </Typography>
-                    <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
+                    <Stack direction="row" spacing={1} useFlexGap sx={{ mt: 1.5, flexWrap: 'wrap' }}>
                         <PriorityBadge priority={task.priority} />
                         <StatusBadge status={task.status} />
+                        <ProcessingBadge task={task} />
                     </Stack>
                 </Box>
 
@@ -134,7 +142,9 @@ function TaskDetails({ task }: { task: TaskResponse }) {
                     <Field label="Status">{formatStatus(task.status)}</Field>
                     <Field label="Priority">{task.priority}</Field>
                     <Field label="Created">{formatDateTime(task.createdAt)}</Field>
-                    <Field label="Processed">{task.processedAt ? formatDateTime(task.processedAt) : 'Not yet'}</Field>
+                    <Field label="Processed">
+                        {task.processedAt ? formatDateTime(task.processedAt) : 'Not yet, the background worker is processing it'}
+                    </Field>
                     <Field label="Task ID">
                         <Typography component="span" variant="body2" sx={{ fontFamily: 'monospace', overflowWrap: 'anywhere' }}>
                             {task.id}
