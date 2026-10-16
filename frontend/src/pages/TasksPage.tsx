@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { Link as RouterLink } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { Box, Button, Paper, Skeleton, Stack, Typography } from '@mui/material'
+import { Box, Button, CardActionArea, Paper, Skeleton, Stack, Typography } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import { queryKeys } from '../api/queryKeys'
 import { getTasks } from '../api/tasks'
@@ -58,25 +59,28 @@ export default function TasksPage() {
 
 function TaskRow({ task }: { task: TaskResponse }) {
     return (
-        <Paper component="li" variant="outlined" sx={{ p: 2 }}>
-            <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={{ xs: 1, sm: 2 }}
-                sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}
-            >
-                <Box sx={{ minWidth: 0 }}>
-                    <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>
-                        {task.title}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        Created {formatDateTime(task.createdAt)}
-                    </Typography>
-                </Box>
-                <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
-                    <PriorityBadge priority={task.priority} />
-                    <StatusBadge status={task.status} />
+        <Paper component="li" variant="outlined" sx={{ overflow: 'hidden' }}>
+            {/* The whole row is one link to the details page, reachable with Tab and Enter. */}
+            <CardActionArea component={RouterLink} to={`/tasks/${task.id}`} sx={{ p: 2 }}>
+                <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={{ xs: 1, sm: 2 }}
+                    sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}
+                >
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>
+                            {task.title}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Created {formatDateTime(task.createdAt)}
+                        </Typography>
+                    </Box>
+                    <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
+                        <PriorityBadge priority={task.priority} />
+                        <StatusBadge status={task.status} />
+                    </Stack>
                 </Stack>
-            </Stack>
+            </CardActionArea>
         </Paper>
     )
 }

@@ -4,6 +4,7 @@ import { PublicOnlyRoute } from './auth/PublicOnlyRoute'
 import { AppLayout } from './components/AppLayout'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import TaskDetailsPage from './pages/TaskDetailsPage'
 import TasksPage from './pages/TasksPage'
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<Navigate to="/tasks" replace />} />
           <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/tasks/:id" element={<TaskDetailsPage />} />
         </Route>
       </Route>
 
