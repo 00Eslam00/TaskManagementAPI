@@ -5,6 +5,7 @@ import { PublicOnlyRoute } from './auth/PublicOnlyRoute'
 import { AppLayout } from './components/AppLayout'
 import AdminUsersPage from './pages/AdminUsersPage'
 import LoginPage from './pages/LoginPage'
+import NotFoundPage from './pages/NotFoundPage'
 import RegisterPage from './pages/RegisterPage'
 import TaskDetailsPage from './pages/TaskDetailsPage'
 import TasksPage from './pages/TasksPage'
@@ -27,11 +28,11 @@ export default function App() {
             <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
             <Route path="/admin/users" element={<AdminUsersPage />} />
           </Route>
+
+          {/* Inside the protected layout: a logged-out visitor logs in first, like for every other page. */}
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>
-
-      {/* Temporary until the "Page not found" page is added in Phase 4. */}
-      <Route path="*" element={<Navigate to="/tasks" replace />} />
     </Routes>
   )
 }
