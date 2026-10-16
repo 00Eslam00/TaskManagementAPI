@@ -1,10 +1,12 @@
-import { Link as RouterLink, Outlet } from 'react-router'
-import { AppBar, Box, Button, Chip, Container, IconButton, Toolbar, Tooltip, Typography } from '@mui/material'
+import { Link as RouterLink, Outlet, useLocation } from 'react-router'
+import { AppBar, Box, Button, Chip, Container, IconButton, Tab, Tabs, Toolbar, Tooltip, Typography } from '@mui/material'
 import LogoutIcon from '@mui/icons-material/Logout'
 import { useAuth } from '../auth/useAuth'
 
 export function AppLayout() {
     const { user, logout } = useAuth()
+    const { pathname } = useLocation()
+    const isAdmin = user?.role === 'Admin'
 
     return (
         <Box sx={{ minHeight: '100vh' }}>
@@ -54,6 +56,21 @@ export function AppLayout() {
                         </IconButton>
                     </Tooltip>
                 </Toolbar>
+
+                {/* Only admins have more than one area, so normal users never see the Users item. */}
+                {isAdmin && (
+                    <Tabs
+                        component="nav"
+                        aria-label="Main navigation"
+                        value={pathname.startsWith('/admin') ? '/admin/users' : '/tasks'}
+                        textColor="inherit"
+                        indicatorColor="secondary"
+                        sx={{ px: { xs: 0, sm: 2 }, minHeight: 40, '& .MuiTab-root': { minHeight: 40 } }}
+                    >
+                        <Tab label="My tasks" value="/tasks" component={RouterLink} to="/tasks" />
+                        <Tab label="Users" value="/admin/users" component={RouterLink} to="/admin/users" />
+                    </Tabs>
+                )}
             </AppBar>
 
             <Container component="main" maxWidth="md" sx={{ py: { xs: 2, sm: 4 } }}>

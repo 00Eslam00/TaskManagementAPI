@@ -1,7 +1,9 @@
 import { Navigate, Route, Routes } from 'react-router'
+import { AdminRoute } from './auth/AdminRoute'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { PublicOnlyRoute } from './auth/PublicOnlyRoute'
 import { AppLayout } from './components/AppLayout'
+import AdminUsersPage from './pages/AdminUsersPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import TaskDetailsPage from './pages/TaskDetailsPage'
@@ -20,6 +22,11 @@ export default function App() {
           <Route path="/" element={<Navigate to="/tasks" replace />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/tasks/:id" element={<TaskDetailsPage />} />
+
+          <Route element={<AdminRoute />}>
+            <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
+            <Route path="/admin/users" element={<AdminUsersPage />} />
+          </Route>
         </Route>
       </Route>
 
