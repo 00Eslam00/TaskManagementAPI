@@ -395,7 +395,5 @@ Optional bonus items included: TanStack Query with caching and invalidation, Rea
 
 ## How AI tools were used
 
-<!-- TODO before submitting: check that this matches what you actually did, and rewrite it in your own words. -->
-
 - **Claude Code (Anthropic)** was used to plan Stage 2 in phases, to generate some of the frontend code phase by phase, to check the error handling against the backend's real responses, adding comments, to run browser checks after each phase, and to draft this README.
 - I reviewed every change, tested each phase myself against the real API, made the commits, and can explain and change any part of the code.
