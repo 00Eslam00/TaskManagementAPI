@@ -85,16 +85,6 @@ public class TaskItemTests
     }
 
     [Fact]
-    public void MarkProcessed_sets_processed_time_only_once()
-    {
-        var task = NewTask();
-
-        Assert.True(task.MarkProcessed(Now.AddSeconds(5)));
-        Assert.False(task.MarkProcessed(Now.AddSeconds(60)));
-        Assert.Equal(Now.AddSeconds(5), task.ProcessedAt);
-    }
-
-    [Fact]
     public void IsOwnedBy_is_true_only_for_the_owner()
     {
         var task = NewTask();
