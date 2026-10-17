@@ -1,4 +1,5 @@
 import { TASK_STATUSES, type TaskResponse } from '../api/types'
+import { normalizeTitle } from './text'
 
 /** Router state the task list passes to a task's details page, so "Back" restores the filters. */
 export interface TaskListLocationState {
@@ -17,9 +18,13 @@ export function parseStatusFilter(value: string | null): StatusFilter {
 
 /** Keeps the tasks' order (the API's: priority first, then creation date). */
 export function filterTasks(tasks: readonly TaskResponse[], status: StatusFilter, search: string): TaskResponse[] {
-    const term = search.trim().toLowerCase()
+    // Spacing is normalized on both sides, the same way titles are stored, so "fix  bug" still
+    // finds "fix bug" (and older tasks saved before titles were normalized are found too).
+    const term = normalizeTitle(search).toLowerCase()
     return tasks.filter(
-        (task) => (status === 'All' || task.status === status) && (!term || task.title.toLowerCase().includes(term)),
+        (task) =>
+            (status === 'All' || task.status === status) &&
+            (!term || normalizeTitle(task.title).toLowerCase().includes(term)),
     )
 }
 

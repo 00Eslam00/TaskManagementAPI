@@ -22,13 +22,20 @@ import { TASK_PRIORITIES, type TaskResponse } from '../api/types'
 import { toApiError } from '../lib/errors'
 import { applyFieldErrors } from '../lib/forms'
 import { limits } from '../lib/limits'
+import { normalizeTitle } from '../lib/text'
 
 const createTaskSchema = z.object({
+    // Normalized first, exactly like the API stores it, then checked: "Fix   bug" is sent as
+    // "Fix bug", and a title made only of spaces is "required" rather than a server error.
     title: z
         .string()
-        .trim()
-        .min(1, 'Title is required')
-        .max(limits.titleMax, `Title cannot be longer than ${limits.titleMax} characters`),
+        .transform(normalizeTitle)
+        .pipe(
+            z
+                .string()
+                .min(1, 'Title is required')
+                .max(limits.titleMax, `Title cannot be longer than ${limits.titleMax} characters`),
+        ),
     description: z
         .string()
         .trim()
