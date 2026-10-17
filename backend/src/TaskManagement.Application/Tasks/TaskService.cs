@@ -12,6 +12,9 @@ public class TaskService : ITaskService
 
     private const string TaskNotFoundMessage = "Task was not found.";
 
+    private const string ChangedConcurrentlyMessage =
+        "This task was changed by another request at the same time. Reload it and try again.";
+
     private readonly ITaskRepository _tasks;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ITaskCache _cache;
@@ -101,7 +104,17 @@ public class TaskService : ITaskService
 
         if (task.ChangeStatus(request.Status))
         {
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            catch (ConflictException ex)
+            {
+                // Status is a concurrency token: another request changed it after this one loaded
+                // the task (for example one set Done while this one set InProgress). Saving would
+                // have overwritten that change, possibly reopening a Done task, so it is refused.
+                throw new ConflictException(ChangedConcurrentlyMessage, ex);
+            }
 
             // Invalidate after the change is committed, so the next read reloads fresh data.
             await _cache.RemoveAsync(task.Id, cancellationToken);
@@ -112,7 +125,10 @@ public class TaskService : ITaskService
         return task.ToResponse();
     }
 
-
+    /// <summary>
+    /// Loads a task and checks it belongs to the user. Someone else's task is reported as
+    /// "not found" rather than "forbidden", so the API does not confirm which task ids exist.
+    /// </summary>
     private async Task<TaskItem> GetOwnedTaskAsync(Guid userId, Guid taskId, CancellationToken cancellationToken)
     {
         var task = await _tasks.GetByIdAsync(taskId, cancellationToken);

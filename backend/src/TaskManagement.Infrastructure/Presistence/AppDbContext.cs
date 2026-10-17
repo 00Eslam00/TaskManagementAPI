@@ -24,8 +24,16 @@ public class AppDbContext : DbContext, IUnitOfWork
         {
             return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
         }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            // A concurrency token no longer had the value it had when the entity was loaded,
+            // so another request changed the same row in between. Report it as a conflict.
+            throw new ConflictException("The record was changed by another request.", ex);
+        }
         catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
         {
+            // Two requests can both pass an "already exists?" check and then race to insert.
+            // The unique index stops the second one; report it as a conflict instead of a server error.
             throw new ConflictException("A record with the same unique values already exists.", ex);
         }
     }
@@ -44,10 +52,10 @@ public class AppDbContext : DbContext, IUnitOfWork
         configurationBuilder.Properties<DateTime>().HaveConversion<UtcDateTimeConverter>();
     }
 
-
-    // All dates are stored in UTC. SQL Server's datetime2 does not keep the kind,
-    // so it is restored on read to make the API return dates with a trailing "Z".
-
+    /// <summary>
+    /// All dates are stored in UTC. SQL Server's datetime2 does not keep the kind,
+    /// so it is restored on read to make the API return dates with a trailing "Z".
+    /// </summary>
     private sealed class UtcDateTimeConverter : ValueConverter<DateTime, DateTime>
     {
         public UtcDateTimeConverter()
