@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using TaskManagement.Domain.Common;
 
 namespace TaskManagement.Domain.Tasks;
@@ -7,6 +8,13 @@ public class TaskItem : Entity
 {
     public const int TitleMaxLength = 200;
     public const int DescriptionMaxLength = 2000;
+
+    // Characters that take no space on screen (zero-width space, word joiner, byte order mark).
+    // Left in, "fixbug" and "fix\u200Bbug" would look the same on screen but count as different titles.
+    private static readonly Regex InvisibleCharacters = new("[\u200B\u2060\uFEFF]", RegexOptions.Compiled);
+
+    // Any run of whitespace: spaces, tabs, line breaks, non-breaking spaces and other Unicode spaces.
+    private static readonly Regex WhitespaceRuns = new(@"\s+", RegexOptions.Compiled);
 
     private TaskItem()
     {
@@ -56,13 +64,19 @@ public class TaskItem : Entity
         };
     }
 
-    /// <summary>Titles are stored trimmed so "Report" and " Report " count as the same title.</summary>
-    public static string NormalizeTitle(string title)
+    /// <summary>
+    /// Stores the title the way it looks on screen: invisible characters removed, every run of
+    /// whitespace turned into one space, and the ends trimmed. So " Fix  bug", "Fix\tbug" and
+    /// "Fix bug" are the same title, and the duplicate rule and its unique index treat them so.
+    /// </summary>
+    public static string NormalizeTitle(string? title)
     {
-        if (string.IsNullOrWhiteSpace(title))
+        title = WhitespaceRuns.Replace(InvisibleCharacters.Replace(title ?? string.Empty, string.Empty), " ").Trim();
+
+        // Checked after normalizing, so a title made only of spaces or invisible characters is rejected too.
+        if (title.Length == 0)
             throw new DomainException("Title is required.");
 
-        title = title.Trim();
         if (title.Length > TitleMaxLength)
             throw new DomainException($"Title cannot be longer than {TitleMaxLength} characters.");
 
