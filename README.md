@@ -28,7 +28,7 @@ The admin is created the first time the API starts. The values come from the `Ad
 
 ```bash
 git clone https://github.com/00Eslam00/TaskManagementAPI.git
-cd TaskManagement
+cd TaskManagementAPI
 ```
 
 On Windows, clone into a short folder such as `C:\src`. Some backend file paths are long, and a deeply nested folder can push them past the 260-character path limit (`git config --global core.longpaths true` also avoids it).
@@ -39,9 +39,9 @@ On Windows, clone into a short folder such as `C:\src`. Some backend file paths 
 docker run -d --name taskmgmt-redis -p 6379:6379 redis:7-alpine
 ```
 
-3. If your SQL Server is not the default local instance, change `ConnectionStrings:DefaultConnection` in `backend/TaskManagement/src/TaskManagement.Api/appsettings.json`. For example, use `Server=.\SQLEXPRESS` for SQL Server Express or `Server=(localdb)\MSSQLLocalDB` for LocalDB.
+1. If your SQL Server is not the default local instance, change `ConnectionStrings:DefaultConnection` in `backend/src/TaskManagement.Api/appsettings.json`. For example, use `Server=.\SQLEXPRESS` for SQL Server Express or `Server=(localdb)\MSSQLLocalDB` for LocalDB.
 
-4. Start the API from the repository root. It listens on `http://localhost:5269`.
+2. Start the API from the repository root. It listens on `http://localhost:5269`.
 
 ```bash
 dotnet run --project backend/src/TaskManagement.Api
@@ -209,9 +209,9 @@ If Redis is unavailable the API keeps working from the database. After a failure
 
 1. `POST /api/tasks` saves the task and then puts its id on an in-memory queue (`System.Threading.Channels`). The request returns immediately.
 2. `TaskProcessingWorker`, a .NET `BackgroundService`, reads ids from the queue one at a time.
-3. For each task it waits 5 seconds to simulate work, then sets the task's `processedAt` timestamp and removes its cache entry.
+3. For each task it waits 5 seconds to simulate work, then sets the task's `processedAt` timestamp and removes its cache entry. `processedAt` is written with one atomic `UPDATE ... WHERE Id = @id AND ProcessedAt IS NULL` (`TaskRepository.MarkProcessedAsync`), so the task is never loaded and saved back.
 
-The worker does not change the task's status, so it never overrides a status set by the user.
+The worker does not change the task's status and does not check it, so it never overrides, or conflicts with, a status the user sets at the same moment.
 
 Because the queue is in memory, the worker re-queues every task that has no `processedAt` when the application starts. A task created just before a crash or restart is therefore still processed.
 
@@ -219,7 +219,7 @@ Because the queue is in memory, the worker re-queues every task that has no `pro
 
 - **Sorting:** `GET /api/tasks` returns tasks by priority (High, then Medium, then Low), then by creation date, oldest first.
 - **Duplicate rule:** a user cannot create two tasks with the same title on the same day. The comparison ignores case and surrounding spaces. It is checked in `TaskService` and also enforced by a unique database index on (user, day, title), so two simultaneous requests cannot both succeed. The second one gets 409.
-- **Status rule:** `Done` is a final state; a task that is `Done` cannot be changed. Setting a task to the status it already has is accepted and does nothing.
+- **Status rule:** `Done` is a final state; a task that is `Done` cannot be changed. Setting a task to the status it already has is accepted and does nothing. `Status` is an EF Core concurrency token, so two status changes that arrive at the same time cannot both pass this check: the second one gets 409 instead of overwriting the first (added in Stage 2, see "Changes since Stage 1").
 - **Admin safety:** an admin cannot delete their own account, so the system can never be left without an admin.
 
 ### Database seeding
@@ -244,11 +244,9 @@ The JWT signing key and the admin password in this file are development values, 
 
 ### Known limitations
 
-- The queue is in memory and the worker runs inside the API process, one task at a time. With several API instances, a restart of one instance could process a task twice; the operation is idempotent, so the result is the same. A production system would use a durable queue.
+- The queue is in memory and the worker runs inside the API process, one task at a time. With several API instances, two workers could pick up the same task after a restart; both would simulate the work, but only one `UPDATE` matches the row (`ProcessedAt IS NULL`), so `processedAt` is set once. A production system would use a durable queue.
 - The guard against stale cache entries after a Redis outage is kept in memory per API instance. With several instances, an outdated entry could survive until its 10-minute expiry.
 - There is no pagination on the list endpoints.
-
-
 
 ## Frontend (Stage 2)
 
@@ -312,7 +310,7 @@ Pages own the data fetching (TanStack Query hooks) and compose components; compo
 - `api/client.ts` is the only axios instance. A request interceptor adds `Authorization: Bearer <token>`; a response interceptor handles 401 as described above.
 - `api/auth.ts`, `api/users.ts` and `api/tasks.ts` contain one typed function per endpoint, for example `getTask(id): Promise<TaskResponse>`. The types in `api/types.ts` mirror the backend DTOs; enums are string unions because the API sends enum names.
 - `lib/errors.ts` turns any failure into `{ status, message, fieldErrors }`: the problem-details `detail` (for example the duplicate-title message), the first validation message for a 400, a fixed sentence for 5xx, or "Cannot reach the server" when there is no response. Forms show `message` in an alert and `fieldErrors` under the matching fields.
-- Server state goes through TanStack Query. After a change the cache is either updated from the response (status update, create user, delete user) or invalidated (create task, which has to land in the API's sort order).
+- Server state goes through TanStack Query. After a change the cache is either updated from the response (status update, create user, delete user) or invalidated (create task, which has to land in the API's sort order). Because of that, the task list and the users list stay fresh for 30 seconds (`LIST_STALE_TIME_MS` in `queryClient.ts`): going back to them reuses the cache instead of calling the API again. The task list is the exception while a task is still processing, because its cached copy may be out of date; then it is reloaded at once. Task details are always loaded from `GET /api/tasks/{id}` when opened.
 
 ### How the background status change is shown
 
@@ -328,15 +326,17 @@ The API's worker picks up every new task, "works" for 5 seconds, then sets `proc
 React Hook Form with Zod schemas. The limits come from `lib/limits.ts`, which mirrors the API's attributes (name 100, email 256, password 8 to 100, title 200, description 2000), and the user field rules are shared by Register and the admin's Create user form (`lib/validation.ts`). Server errors are shown too: a 409 marks the duplicate field and shows the API's message, and 400 validation messages are placed under the matching fields.
 
 
+
 ## Changes since Stage 1
 
 Backend changes made for the frontend:
 
-| Change                                                                                                                                                                                                                                                                                                                                                                          | Reason                                                                                                                                                                                                                                                                                                                                        |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CORS policy `Frontend` added (`Api/Infrastructure/CorsExtensions.cs`, `Cors:AllowedOrigins` in `appsettings.json`). Only `http://localhost:5173` is allowed, with only the `Authorization` and `Content-Type` headers and the GET, POST, PATCH and DELETE methods.                                                                                                              | The browser blocks calls from the React app (a different origin) unless the API allows them. The middleware runs before the exception handler, so 401 and 409 error responses also carry the CORS headers and the UI can show their messages.                                                                                                 |
-| `Dockerfile` and `.dockerignore` read the .NET code from `backend/TaskManagement/`, and the README paths were updated to match. `frontend/` is excluded from the API's Docker build.                                                                                                                                                                                            | The Stage 1 code had moved into `backend/`, but the Dockerfile still copied from `src/`, so `docker compose up --build` failed.                                                                                                                                                                                                               |
-| `Tasks.Status` is now an EF Core concurrency token (`TaskItemConfiguration`), a concurrency failure is mapped to 409 (`AppDbContext`), and `TaskService.UpdateStatusAsync` returns "This task was changed by another request at the same time. Reload it and try again." Migration `MakeTaskStatusConcurrencyToken` only updates the model snapshot; the table does not change. | Two status changes sent at the same moment (for example Done from one tab and In progress from another) both passed the "Done is final" check, and the last one won, so a Done task could be reopened. In a test of 25 simultaneous Done + In progress pairs, 11 tasks ended up In progress after Done had succeeded; after the fix, 0 of 50. |
+| Change                                                                                                                                                                                                                                                                                                                                                                          | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CORS policy `Frontend` added (`Api/Infrastructure/CorsExtensions.cs`, `Cors:AllowedOrigins` in `appsettings.json`). Only `http://localhost:5173` is allowed, with only the `Authorization` and `Content-Type` headers and the GET, POST, PATCH and DELETE methods.                                                                                                              | The browser blocks calls from the React app (a different origin) unless the API allows them. The middleware runs before the exception handler, so 401 and 409 error responses also carry the CORS headers and the UI can show their messages.                                                                                                                                                                                         |
+| `Dockerfile` and `.dockerignore` read the .NET code from `backend/TaskManagement/`, and the README paths were updated to match. `frontend/` is excluded from the API's Docker build.                                                                                                                                                                                            | The Stage 1 code had moved into `backend/`, but the Dockerfile still copied from `src/`, so `docker compose up --build` failed.                                                                                                                                                                                                                                                                                                       |
+| `Tasks.Status` is now an EF Core concurrency token (`TaskItemConfiguration`), a concurrency failure is mapped to 409 (`AppDbContext`), and `TaskService.UpdateStatusAsync` returns "This task was changed by another request at the same time. Reload it and try again." Migration `MakeTaskStatusConcurrencyToken` only updates the model snapshot; the table does not change. | Two status changes sent at the same moment (for example Done from one tab and In progress from another) both passed the "Done is final" check, and the last one won, so a Done task could be reopened. In a test of 25 simultaneous Done + In progress pairs, 11 tasks ended up In progress after Done had succeeded; after the fix, 0 of 50.                                                                                         |
+| The background worker sets `processedAt` with a single atomic `UPDATE ... WHERE Id = @id AND ProcessedAt IS NULL` (`ITaskRepository.MarkProcessedAsync`, `TaskProcessor`) instead of loading the task, changing it and saving it. `TaskItem.MarkProcessed` was removed, because the database now enforces "processed only once".                                                | With `Status` as a concurrency token, the worker's old save also ran `UPDATE ... WHERE Id = @id AND Status = @original` (confirmed in the SQL log). If the user changed the status between the worker's read and its save, the save failed and the task stayed unprocessed until the next restart. The new UPDATE never reads or checks the status, so the worker and the user cannot conflict, and it uses one query instead of two. |
 
 No status code had to change: the API already returns 400 (validation or business rule), 401 (invalid login or token), 403 (not an admin), 404 (not found, or another user's task) and 409 (duplicate email or task title), each with a readable `detail` or field messages. This was checked for every endpoint the frontend uses.
 
@@ -345,6 +345,7 @@ No status code had to change: the API already returns 400 (validation or busines
 Improvements to the existing flows, beyond what the task asks for, and why each was made:
 
 - **Simultaneous status changes cannot reopen a Done task (backend):** the "Done is final" check and the save are now protected by a concurrency token on `Status`, so when two changes race, the second one gets a 409 with a clear message instead of silently overwriting the first. The frontend shows that message and reloads the task. This fixes a real rule violation that was reproduced before the change (see "Changes since Stage 1").
+- **The background worker and the user can change the same task at the same time (backend):** the worker marks a task processed with one atomic `UPDATE` that only touches `processedAt`, so a status change made by the user while the worker is finishing can neither be overwritten nor make the worker fail, and a task can only be marked processed once, even with two workers. It also replaces a read and a write with a single query.
 - **Session expiry while working:** a 401 from any request (for example while the create-task dialog is open) ends the session with a clear "Your session has expired" message, and after logging in the user goes back to the page they were on, so they do not lose their place.
 - **A wrong password is not "session expired":** a 401 from the login form is shown as "Invalid email or password." and never triggers the logout flow, so the two cases cannot be confused.
 - **Forms keep their input after a server error,** submit buttons are disabled while their request runs, and a dialog cannot be closed mid-request, so nothing is lost or sent twice.
@@ -352,7 +353,7 @@ Improvements to the existing flows, beyond what the task asks for, and why each 
 - **Client rules match the server exactly:** all limits come from one file that mirrors the API, and Register and Create user share the same rules, so the browser never accepts what the API rejects, or the other way round.
 - **Done is confirmed:** because `Done` is final in the backend, choosing it asks for confirmation first, and afterwards the status control is locked with an explanation instead of failing on the next click.
 - **Status changed elsewhere:** if a status update fails (for example the task was set to Done in another tab), the page shows the API's message and reloads the task to show its real state.
-- **No unnecessary requests:** a malformed task id shows "Task not found" without calling the API; status updates, created users and deleted users are written into the cache from the response instead of reloading lists; polling runs only while a task is being processed.
+- **No unnecessary requests:** a malformed task id shows "Task not found" without calling the API; status updates, created users and deleted users are written into the cache from the response instead of reloading lists; polling runs only while a task is being processed; and the task and user lists are reused from the cache for 30 seconds instead of being reloaded on every visit (a path of opening two tasks and switching to Users and back went from 7 API calls to 3).
 - **Bounded polling:** it pauses in a hidden tab and stops for a task still unprocessed after 5 minutes, so a stuck worker cannot cause endless requests.
 - **Filters survive navigation:** the status filter and search are kept in the URL, and "Back to tasks" on a task's details restores them.
 - **Separate empty states:** "You have no tasks yet" and "No tasks match your filters" (with a Clear filters button) are different messages, so an empty filter result is not mistaken for lost data.
@@ -394,5 +395,7 @@ Optional bonus items included: TanStack Query with caching and invalidation, Rea
 
 ## How AI tools were used
 
-- **Claude Code (Anthropic)** was used to plan Stage 2 in phases, to generate some of the frontend code phase by phase, to check the error handling against the backend's real responses, to run browser checks after each phase, and to draft this README.
+<!-- TODO before submitting: check that this matches what you actually did, and rewrite it in your own words. -->
+
+- **Claude Code (Anthropic)** was used to plan Stage 2 in phases, to generate some of the frontend code phase by phase, to check the error handling against the backend's real responses, adding comments, to run browser checks after each phase, and to draft this README.
 - I reviewed every change, tested each phase myself against the real API, made the commits, and can explain and change any part of the code.
