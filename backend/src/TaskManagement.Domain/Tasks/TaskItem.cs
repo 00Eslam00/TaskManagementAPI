@@ -1,46 +1,92 @@
-using Microsoft.EntityFrameworkCore;
-using TaskManagement.Domain.Tasks;
+using TaskManagement.Domain.Common;
 
-namespace TaskManagement.Infrastructure.Persistence.Repositories;
+namespace TaskManagement.Domain.Tasks;
 
-public class TaskRepository : ITaskRepository
+// Named TaskItem to avoid clashing with System.Threading.Tasks.Task.
+public class TaskItem : Entity
 {
-    private readonly AppDbContext _context;
+    public const int TitleMaxLength = 200;
+    public const int DescriptionMaxLength = 2000;
 
-    public TaskRepository(AppDbContext context)
+    private TaskItem()
     {
-        _context = context;
     }
 
-    public Task<TaskItem?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-        _context.Tasks.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+    public string Title { get; private set; } = null!;
+    public string? Description { get; private set; }
+    public TaskItemStatus Status { get; private set; }
+    public TaskPriority Priority { get; private set; }
+    public DateTime CreatedAt { get; private set; }
 
-    public async Task<IReadOnlyList<TaskItem>> GetByUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
-        await _context.Tasks
-            .AsNoTracking()
-            .Where(t => t.UserId == userId)
-            .OrderByDescending(t => t.Priority)
-            .ThenBy(t => t.CreatedAt)
-            .ToListAsync(cancellationToken);
+    /// <summary>The UTC calendar day the task was created on. Used by the "no duplicate title per day" rule.</summary>
+    public DateOnly CreatedOn { get; private set; }
 
-    public Task<bool> ExistsWithTitleOnDayAsync(Guid userId, string normalizedTitle, DateOnly day, CancellationToken cancellationToken = default) =>
-        _context.Tasks.AnyAsync(t => t.UserId == userId && t.CreatedOn == day && t.Title == normalizedTitle, cancellationToken);
+    public Guid UserId { get; private set; }
 
-    public async Task<IReadOnlyList<Guid>> GetUnprocessedIdsAsync(CancellationToken cancellationToken = default) =>
-        await _context.Tasks
-            .Where(t => t.ProcessedAt == null)
-            .OrderBy(t => t.CreatedAt)
-            .Select(t => t.Id)
-            .ToListAsync(cancellationToken);
+    /// <summary>
+    /// Set by the background worker once it has processed the task. The worker writes it with a
+    /// single database UPDATE (ITaskRepository.MarkProcessedAsync) that only matches an
+    /// unprocessed task, so it is set once and never touches the user's status.
+    /// </summary>
+    public DateTime? ProcessedAt { get; private set; }
 
-    // ExecuteUpdate sends one "UPDATE ... WHERE Id = @id AND ProcessedAt IS NULL" straight to the
-    // database, without loading the task. Because the entity is never tracked, the Status
-    // concurrency token is not part of the WHERE clause, and "processed only once" is decided by
-    // the database: if two workers race, only one UPDATE matches the row.
-    public async Task<bool> MarkProcessedAsync(Guid id, DateTime processedAt, CancellationToken cancellationToken = default) =>
-        await _context.Tasks
-            .Where(t => t.Id == id && t.ProcessedAt == null)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.ProcessedAt, processedAt), cancellationToken) == 1;
+    public bool IsProcessed => ProcessedAt is not null;
 
-    public void Add(TaskItem task) => _context.Tasks.Add(task);
+    public static TaskItem Create(Guid userId, string title, string? description, TaskPriority priority, DateTime utcNow)
+    {
+        if (userId == Guid.Empty)
+            throw new DomainException("A task must belong to a user.");
+
+        if (!Enum.IsDefined(priority))
+            throw new DomainException("Priority is not valid.");
+
+        description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        if (description is { Length: > DescriptionMaxLength })
+            throw new DomainException($"Description cannot be longer than {DescriptionMaxLength} characters.");
+
+        return new TaskItem
+        {
+            UserId = userId,
+            Title = NormalizeTitle(title),
+            Description = description,
+            Priority = priority,
+            Status = TaskItemStatus.Pending,
+            CreatedAt = utcNow,
+            CreatedOn = DateOnly.FromDateTime(utcNow)
+        };
+    }
+
+    /// <summary>Titles are stored trimmed so "Report" and " Report " count as the same title.</summary>
+    public static string NormalizeTitle(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+            throw new DomainException("Title is required.");
+
+        title = title.Trim();
+        if (title.Length > TitleMaxLength)
+            throw new DomainException($"Title cannot be longer than {TitleMaxLength} characters.");
+
+        return title;
+    }
+
+    public bool IsOwnedBy(Guid userId) => UserId == userId;
+
+    /// <summary>
+    /// Changes the status. Done is a final state, and setting the current status again is a no-op.
+    /// </summary>
+    /// <returns>True if the status actually changed.</returns>
+    public bool ChangeStatus(TaskItemStatus newStatus)
+    {
+        if (!Enum.IsDefined(newStatus))
+            throw new DomainException("Status is not valid.");
+
+        if (newStatus == Status)
+            return false;
+
+        if (Status == TaskItemStatus.Done)
+            throw new DomainException("A task that is Done cannot be changed.");
+
+        Status = newStatus;
+        return true;
+    }
 }

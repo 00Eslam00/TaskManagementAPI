@@ -33,5 +33,14 @@ public class TaskRepository : ITaskRepository
             .Select(t => t.Id)
             .ToListAsync(cancellationToken);
 
+    // ExecuteUpdate sends one "UPDATE ... WHERE Id = @id AND ProcessedAt IS NULL" straight to the
+    // database, without loading the task. Because the entity is never tracked, the Status
+    // concurrency token is not part of the WHERE clause, and "processed only once" is decided by
+    // the database: if two workers race, only one UPDATE matches the row.
+    public async Task<bool> MarkProcessedAsync(Guid id, DateTime processedAt, CancellationToken cancellationToken = default) =>
+        await _context.Tasks
+            .Where(t => t.Id == id && t.ProcessedAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.ProcessedAt, processedAt), cancellationToken) == 1;
+
     public void Add(TaskItem task) => _context.Tasks.Add(task);
 }
