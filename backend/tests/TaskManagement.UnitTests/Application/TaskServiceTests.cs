@@ -162,6 +162,22 @@ public class TaskServiceTests
     }
 
     [Fact]
+    public async Task UpdateStatus_reports_a_conflict_when_another_request_changed_the_status_first()
+    {
+        var task = ExistingTask();
+        // What AppDbContext throws when the Status concurrency token no longer matches.
+        _unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ConflictException("The record was changed by another request."));
+
+        var exception = await Assert.ThrowsAsync<ConflictException>(() =>
+            _service.UpdateStatusAsync(UserId, task.Id, new UpdateTaskStatusRequest { Status = TaskItemStatus.InProgress }));
+
+        Assert.Equal("This task was changed by another request at the same time. Reload it and try again.", exception.Message);
+        // Nothing was saved, so the cached copy (if any) is still correct and is left alone.
+        _cache.Verify(c => c.RemoveAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task UpdateStatus_rejects_changing_a_done_task()
     {
         var task = ExistingTask();
