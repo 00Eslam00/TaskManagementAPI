@@ -26,11 +26,41 @@ public class TaskItemTests
     }
 
     [Theory]
+    [InlineData("Write   report")]          // several spaces
+    [InlineData("Write\treport")]           // tab
+    [InlineData("Write\r\nreport")]         // line break
+    [InlineData("Write\u00A0report")]       // non-breaking space
+    [InlineData(" \u200BWrite  report\uFEFF ")] // invisible characters and spaces around
+    public void Create_stores_the_title_as_it_looks_on_screen(string title)
+    {
+        // All of these render as "Write report", so they must be stored as exactly that;
+        // otherwise each would pass the "no duplicate title on the same day" rule.
+        Assert.Equal("Write report", NewTask(title).Title);
+    }
+
+    [Fact]
+    public void Create_removes_an_invisible_character_inside_a_word()
+    {
+        Assert.Equal("Writereport", NewTask("Write\u200Breport").Title);
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("   ")]
+    [InlineData("\t \u00A0")]
+    [InlineData("\u200B\uFEFF")]
     public void Create_rejects_empty_title(string title)
     {
         Assert.Throws<DomainException>(() => NewTask(title));
+    }
+
+    [Fact]
+    public void Create_checks_the_length_after_collapsing_spaces()
+    {
+        // 200 visible characters plus extra spaces in the middle is still a valid title.
+        var title = new string('a', 100) + "     " + new string('b', 99);
+
+        Assert.Equal(TaskItem.TitleMaxLength, NewTask(title).Title.Length);
     }
 
     [Fact]

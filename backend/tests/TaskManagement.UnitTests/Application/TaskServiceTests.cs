@@ -67,6 +67,19 @@ public class TaskServiceTests
     }
 
     [Fact]
+    public async Task Create_rejects_a_duplicate_that_only_differs_in_spacing()
+    {
+        // The existing task is "Write report"; the new one has extra spaces and a tab in the middle.
+        _tasks.Setup(r => r.ExistsWithTitleOnDayAsync(UserId, "Write report", DateOnly.FromDateTime(Now), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        await Assert.ThrowsAsync<ConflictException>(() =>
+            _service.CreateAsync(UserId, new CreateTaskRequest { Title = "Write  \t report" }));
+
+        _tasks.Verify(r => r.Add(It.IsAny<TaskItem>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Create_reports_a_duplicate_when_the_database_rejects_a_concurrent_insert()
     {
         _unitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
