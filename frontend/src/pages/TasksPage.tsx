@@ -12,7 +12,7 @@ import { PriorityBadge, ProcessingBadge, StatusBadge } from '../components/TaskB
 import { TaskFilters } from '../components/TaskFilters'
 import { toApiError } from '../lib/errors'
 import { formatDateTime } from '../lib/format'
-import { pollWhileProcessing } from '../lib/processing'
+import { isProcessing, pollWhileProcessing } from '../lib/processing'
 import {
     countByStatus,
     filterTasks,
@@ -20,6 +20,7 @@ import {
     type StatusFilter,
     type TaskListLocationState,
 } from '../lib/taskFilters'
+import { LIST_STALE_TIME_MS } from '../queryClient'
 
 export default function TasksPage() {
     const [createOpen, setCreateOpen] = useState(false)
@@ -30,6 +31,10 @@ export default function TasksPage() {
         // 2 seconds so its "Processing…" badge changes without a page reload. Polling stops by
         // itself once every task is processed, and pauses while the browser tab is hidden.
         refetchInterval: (query) => pollWhileProcessing(query.state.data),
+        // Coming back to the list reuses the cache instead of asking the API again, unless a task
+        // is still processing: then the cached copy may be out of date (the details page may have
+        // seen it finish), so it is reloaded at once.
+        staleTime: (query) => (query.state.data?.some(isProcessing) ? 0 : LIST_STALE_TIME_MS),
     })
 
     return (

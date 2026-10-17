@@ -32,6 +32,7 @@ import { CreateUserDialog } from '../components/CreateUserDialog'
 import { EmptyState, ErrorState } from '../components/PageStates'
 import { toApiError } from '../lib/errors'
 import { formatDateTime } from '../lib/format'
+import { LIST_STALE_TIME_MS } from '../queryClient'
 import AccessDeniedPage from './AccessDeniedPage'
 
 interface Notice {
@@ -51,7 +52,8 @@ export default function AdminUsersPage() {
     const [confirmOpen, setConfirmOpen] = useState(false)
     const [notice, setNotice] = useState<Notice | null>(null)
 
-    const usersQuery = useQuery({ queryKey: queryKeys.users, queryFn: getUsers })
+    // Adding and deleting users update this cache directly, so it stays correct between visits.
+    const usersQuery = useQuery({ queryKey: queryKeys.users, queryFn: getUsers, staleTime: LIST_STALE_TIME_MS })
 
     const removeFromList = (id: string) =>
         queryClient.setQueryData<UserResponse[]>(queryKeys.users, (users) => users?.filter((u) => u.id !== id))
